@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>対局時計 (Game Timer)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Sans+JP:wght@400;500;700;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            touch-action: manipulation;
+        }
+        .font-timer {
+            font-family: 'Orbitron', monospace;
+        }
+        .font-serif-title {
+            font-family: 'Cinzel', 'Noto Sans JP', serif;
+        }
+        /* Custom smooth transitions & animations */
+        .player-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .active-player-p1 {
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95), rgba(15, 23, 42, 0.98));
+            box-shadow: 0 0 35px rgba(59, 130, 246, 0.35);
+            border-color: #3b82f6 !important;
+        }
+        .active-player-p2 {
+            background: linear-gradient(135deg, rgba(120, 53, 15, 0.95), rgba(24, 24, 27, 0.98));
+            box-shadow: 0 0 35px rgba(245, 158, 11, 0.35);
+            border-color: #f59e0b !important;
+        }
+        .byoyomi-alert {
+            animation: pulse-red 1s infinite alternate;
+        }
+        @keyframes pulse-red {
+            0% { color: #f87171; text-shadow: 0 0 5px rgba(248, 113, 113, 0.5); }
+            100% { color: #ef4444; text-shadow: 0 0 20px rgba(239, 68, 68, 0.9); }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between select-none overflow-x-hidden">
+
+    <!-- Top Header & Global Controls -->
+    <header class="bg-slate-900/80 backdrop-blur border-b border-slate-800 p-3 sm:p-4 flex items-center justify-between z-10 shadow-md">
+        <div class="flex items-center space-x-2">
+            <svg class="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 9 0 0118 0z"></path>
+            </svg>
+            <h1 class="text-lg sm:text-xl font-bold tracking-wider font-serif-title bg-gradient-to-r from-amber-200 to-amber-500 bg-clip-text text-transparent">
+                対局時計 <span class="text-xs text-slate-400 font-sans tracking-normal ml-1">Pro</span>
+            </h1>
+        </div>
+
+        <!-- Center Controls: Status Indicator -->
+        <div id="gameStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+            待機中 (Tap to Start)
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-1.5 sm:space-x-3">
+            <!-- Mute/Sound Toggle -->
+            <button id="soundBtn" onclick="toggleSound()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="効果音のON/OFF">
+                <svg id="soundIconOn" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                </svg>
+                <svg id="soundIconOff" class="w-5 h-5 hidden text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                </svg>
+            </button>
+
+            <!-- Settings Button -->
+            <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="持ち時間設定">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
+
+            <!-- Reset Button -->
+            <button onclick="confirmReset()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 transition" title="リセット">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 flex flex-col md:flex-row gap-4 items-stretch justify-center my-auto">
+        
+        <!-- PLAYER 1 ZONE (先手・黒 / Left) -->
+        <div id="playerCard1" onclick="handleTap(1)" 
+             class="player-card flex-1 cursor-pointer rounded-2xl bg-slate-900 border-2 border-slate-800 p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all duration-200 hover:border-slate-700 active:scale-[0.99] min-h-[220px]">
+            
+            <div class="flex justify-between items-start z-10">
+                <div>
+                    <span class="inline-block px-3 py-1 rounded-md text-xs font-bold tracking-wider bg-blue-950/80 text-blue-400 border border-blue-800/50 uppercase">
+                        PLAYER 1
+                    </span>
+                    <h2 class="text-xl sm:text-2xl font-bold mt-1 text-slate-100">▲ 先手 / 黒</h2>
+                </div>
+                <div id="p1MoveBadge" class="text-sm font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                    手数: <span id="p1Moves" class="font-timer text-blue-400 text-base">0</span>
+                </div>
+            </div>
+
+            <!-- Time Display -->
+            <div class="my-auto py-4 text-center z-10">
+                <!-- Main Time (MM:SS) -->
+                <div id="p1Time" class="font-timer text-5xl sm:text-7xl font-extrabold tracking-tight text-slate-100">
+                    15:00
+                </div>
+                <!-- Byoyomi Display -->
+                <div id="p1ByoyomiBox" class="mt-2 text-lg sm:text-xl font-semibold text-slate-400 h-8 flex items-center justify-center">
+                    <span id="p1ByoyomiText" class="px-3 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/50">
+                        秒読み: <span id="p1Byoyomi" class="font-timer font-bold text-slate-200">60</span> 秒
+                    </span>
+                </div>
+            </div>
+
+            <!-- Bottom Tap Hint -->
+            <div id="p1Hint" class="text-center text-xs font-semibold text-slate-500 uppercase tracking-widest z-10">
+                タップして手を渡す (または Left Alt / Z)
+            </div>
+
+            <!-- Accent Background Effect -->
+            <div id="p1BgGlow" class="absolute -bottom-20 -right-20 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        </div>
+
+        <!-- PLAYER 2 ZONE (後手・白 / Right) -->
+        <div id="playerCard2" onclick="handleTap(2)" 
+             class="player-card flex-1 cursor-pointer rounded-2xl bg-slate-900 border-2 border-slate-800 p-6 sm:p-8 flex flex-col justify-between relative overflow-hidden transition-all duration-200 hover:border-slate-700 active:scale-[0.99] min-h-[220px]">
+            
+            <div class="flex justify-between items-start z-10">
+                <div>
+                    <span class="inline-block px-3 py-1 rounded-md text-xs font-bold tracking-wider bg-amber-950/80 text-amber-400 border border-amber-800/50 uppercase">
+                        PLAYER 2
+                    </span>
+                    <h2 class="text-xl sm:text-2xl font-bold mt-1 text-slate-100">△ 後手 / 白</h2>
+                </div>
+                <div id="p2MoveBadge" class="text-sm font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                    手数: <span id="p2Moves" class="font-timer text-amber-400 text-base">0</span>
+                </div>
+            </div>
+
+            <!-- Time Display -->
+            <div class="my-auto py-4 text-center z-10">
+                <!-- Main Time (MM:SS) -->
+                <div id="p2Time" class="font-timer text-5xl sm:text-7xl font-extrabold tracking-tight text-slate-100">
+                    15:00
+                </div>
+                <!-- Byoyomi Display -->
+                <div id="p2ByoyomiBox" class="mt-2 text-lg sm:text-xl font-semibold text-slate-400 h-8 flex items-center justify-center">
+                    <span id="p2ByoyomiText" class="px-3 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/50">
+                        秒読み: <span id="p2Byoyomi" class="font-timer font-bold text-slate-200">60</span> 秒
+                    </span>
+                </div>
+            </div>
+
+            <!-- Bottom Tap Hint -->
+            <div id="p2Hint" class="text-center text-xs font-semibold text-slate-500 uppercase tracking-widest z-10">
+                タップして手を渡す (または Right Alt / /)
+            </div>
+
+            <!-- Accent Background Effect -->
+            <div id="p2BgGlow" class="absolute -bottom-20 -right-20 w-48 h-48 bg-amber-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        </div>
+
+    </main>
+
+    <div class="w-full max-w-md mx-auto px-4 pb-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between shadow-xl">
+            <!-- Pause / Resume Button -->
+            <button id="pauseBtn" onclick="togglePause()" class="flex-1 mx-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold flex items-center justify-center space-x-2 transition active:scale-95">
+                <svg id="pauseIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <svg id="playIcon" class="w-5 h-5 hidden text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span id="pauseBtnText">一時停止</span>
+            </button>
+
+            <!-- Switch Player Button (Center Spacebar equivalent) -->
+            <button id="switchBtn" onclick="handleCenterSwitch()" class="flex-1 mx-1 py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-black flex items-center justify-center space-x-2 transition active:scale-95 shadow-lg shadow-amber-600/20">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+                <span>交代 [Space]</span>
+            </button>
+        </div>
+        
+        <p class="text-center text-xs text-slate-500 mt-2">
+            キーボード操作: <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 border border-slate-700">Space</kbd> 交代 | <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-400 border border-slate-700">P</kbd> 一時停止
+        </p>
+    </div>
+
+    <div id="settingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                    </svg>
+                    <span>対局時間の設定</span>
+                </h3>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">プリセット</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="applyPreset(15, 60)" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg text-slate-200 border border-slate-700 transition">
+                        15分 + 秒読み60秒
+                    </button>
+                    <button onclick="applyPreset(10, 30)" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg text-slate-200 border border-slate-700 transition">
+                        10分 + 秒読み30秒
+                    </button>
+                    <button onclick="applyPreset(5, 0)" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg text-slate-200 border border-slate-700 transition">
+                        5分（切れ負け）
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Input Controls -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">持ち時間（分）</label>
+                    <input type="number" id="inputMainTime" min="0" max="180" value="15" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-timer">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">秒読み時間（秒）</label>
+                    <input type="number" id="inputByoyomi" min="0" max="120" value="60" 
+                           class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-amber-500 font-timer">
+                </div>
+            </div>
+
+            <div class="mt-6 flex space-x-3">
+                <button onclick="closeSettingsModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold transition">
+                    キャンセル
+                </button>
+                <button onclick="saveSettings()" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-bold transition">
+                    保存して再スタート
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="resetModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <div class="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-500/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-100 mb-2">対局をリセットしますか？</h3>
+            <p class="text-sm text-slate-400 mb-6">現在の手数と残り時間がすべて初期状態に戻ります。</p>
+
+            <div class="flex space-x-3">
+                <button onclick="closeResetModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-semibold transition">
+                    キャンセル
+                </button>
+                <button onclick="executeReset()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition">
+                    リセット
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Configuration
+        let config = {
+            mainTimeMinutes: 15,
+            byoyomiSeconds: 60,
+            soundEnabled: true
+        };
+
+        // Game State Variables
+        let state = {
+            activePlayer: 0, // 0: Idle, 1: Player 1, 2: Player 2
+            isPaused: false,
+            isFinished: false,
+            p1: {
+                mainSeconds: 15 * 60,
+                byoyomiSeconds: 60,
+                inByoyomi: false,
+                moves: 0
+            },
+            p2: {
+                mainSeconds: 15 * 60,
+                byoyomiSeconds: 60,
+                inByoyomi: false,
+                moves: 0
+            }
+        };
+
+        let timerInterval = null;
+
+        // Web Audio API Context and Synthesizer
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Play synthetic beep / chime sounds using Web Audio API
+        function playSound(type) {
+            if (!config.soundEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'tap') {
+                    // Turn switch tone
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587.33, now); // D5
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'beep') {
+                    // Countdown beep (10s under)
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(783.99, now); // G5
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'byoyomi') {
+                    // Entered byoyomi warning
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(440, now); // A4
+                    osc.frequency.linearRampToValueAtTime(330, now + 0.2);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'timeout') {
+                    // Time expired buzzer
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.setValueAtTime(160, now + 0.2);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.001, now + 0.8);
+                    osc.start(now);
+                    osc.stop(now + 0.8);
+                }
+            } catch (e) {
+                console.error("Audio playback error:", e);
+            }
+        }
+
+        // Helper: Format seconds to MM:SS
+        function formatMMSS(totalSeconds) {
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function updateDisplay() {
+            // Player 1 Render
+            document.getElementById('p1Time').textContent = formatMMSS(state.p1.mainSeconds);
+            document.getElementById('p1Byoyomi').textContent = state.p1.byoyomiSeconds;
+            document.getElementById('p1Moves').textContent = state.p1.moves;
+
+            const p1ByoBox = document.getElementById('p1ByoyomiBox');
+            if (state.p1.inByoyomi) {
+                p1ByoBox.classList.add('byoyomi-alert');
+            } else {
+                p1ByoBox.classList.remove('byoyomi-alert');
+            }
+
+            // Player 2 Render
+            document.getElementById('p2Time').textContent = formatMMSS(state.p2.mainSeconds);
+            document.getElementById('p2Byoyomi').textContent = state.p2.byoyomiSeconds;
+            document.getElementById('p2Moves').textContent = state.p2.moves;
+
+            const p2ByoBox = document.getElementById('p2ByoyomiBox');
+            if (state.p2.inByoyomi) {
+                p2ByoBox.classList.add('byoyomi-alert');
+            } else {
+                p2ByoBox.classList.remove('byoyomi-alert');
+            }
+
+            // Player Active Card Styles
+            const p1Card = document.getElementById('playerCard1');
+            const p2Card = document.getElementById('playerCard2');
+
+            p1Card.classList.remove('active-player-p1');
+            p2Card.classList.remove('active-player-p2');
+
+            if (state.activePlayer === 1) {
+                p1Card.classList.add('active-player-p1');
+            } else if (state.activePlayer === 2) {
+                p2Card.classList.add('active-player-p2');
+            }
+
+            // Game Status Badge
+            const badge = document.getElementById('gameStatusBadge');
+            if (state.isFinished) {
+                badge.textContent = "対局終了 (Time Out)";
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-rose-950 text-rose-300 border border-rose-800";
+            } else if (state.isPaused) {
+                badge.textContent = "一時停止中";
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800";
+            } else if (state.activePlayer === 0) {
+                badge.textContent = "待機中 (Tap to Start)";
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700";
+            } else {
+                const pName = state.activePlayer === 1 ? "先手▲" : "後手△";
+                badge.textContent = `${pName} 手番中`;
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 animate-pulse";
+            }
+
+            // Pause Button UI
+            const pauseBtnText = document.getElementById('pauseBtnText');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+
+            if (state.isPaused) {
+                pauseBtnText.textContent = "再開";
+                pauseIcon.classList.add('hidden');
+                playIcon.classList.remove('hidden');
+            } else {
+                pauseBtnText.textContent = "一時停止";
+                pauseIcon.classList.remove('hidden');
+                playIcon.classList.add('hidden');
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(tick, 1000);
+        }
+
+        function tick() {
+            if (state.isPaused || state.activePlayer === 0 || state.isFinished) return;
+
+            const curKey = state.activePlayer === 1 ? 'p1' : 'p2';
+            const player = state[curKey];
+
+            if (!player.inByoyomi) {
+                // Main Time countdown
+                if (player.mainSeconds > 0) {
+                    player.mainSeconds--;
+                    if (player.mainSeconds === 0) {
+                        // Switch to Byoyomi mode
+                        player.inByoyomi = true;
+                        playSound('byoyomi');
+                    }
+                }
+            } else {
+                // Byoyomi Countdown
+                if (player.byoyomiSeconds > 0) {
+                    player.byoyomiSeconds--;
+                    
+                    // Countdown warning beeps for last 10 seconds
+                    if (player.byoyomiSeconds <= 10 && player.byoyomiSeconds > 0) {
+                        playSound('beep');
+                    }
+
+                    if (player.byoyomiSeconds === 0) {
+                        // Time out / Game Over
+                        state.isFinished = true;
+                        playSound('timeout');
+                        clearInterval(timerInterval);
+                    }
+                }
+            }
+
+            updateDisplay();
+        }
+
+        function handleTap(playerIndex) {
+            if (state.isFinished) return;
+            initAudio();
+
+            // First tap starts the game (Player 1 moves first)
+            if (state.activePlayer === 0) {
+                state.activePlayer = 1;
+                startTimer();
+                playSound('tap');
+                updateDisplay();
+                return;
+            }
+
+            // Only respond if tapping the currently active player to end their turn
+            if (state.activePlayer === playerIndex && !state.isPaused) {
+                const curKey = playerIndex === 1 ? 'p1' : 'p2';
+                state[curKey].moves++;
+
+                // Reset Byoyomi timer back to full default after move
+                if (state[curKey].inByoyomi) {
+                    state[curKey].byoyomiSeconds = config.byoyomiSeconds;
+                }
+
+                // Switch player
+                state.activePlayer = playerIndex === 1 ? 2 : 1;
+                playSound('tap');
+                updateDisplay();
+            }
+        }
+
+        function handleCenterSwitch() {
+            if (state.isFinished || state.isPaused) return;
+            initAudio();
+
+            if (state.activePlayer === 0) {
+                state.activePlayer = 1;
+                startTimer();
+                playSound('tap');
+            } else {
+                handleTap(state.activePlayer);
+            }
+            updateDisplay();
+        }
+
+        function togglePause() {
+            if (state.activePlayer === 0 || state.isFinished) return;
+            state.isPaused = !state.isPaused;
+            updateDisplay();
+        }
+
+        function toggleSound() {
+            config.soundEnabled = !config.soundEnabled;
+            document.getElementById('soundIconOn').classList.toggle('hidden', !config.soundEnabled);
+            document.getElementById('soundIconOff').classList.toggle('hidden', config.soundEnabled);
+        }
+
+        // Reset Dialog Logic
+        function confirmReset() {
+            document.getElementById('resetModal').classList.remove('hidden');
+        }
+
+        function closeResetModal() {
+            document.getElementById('resetModal').classList.add('hidden');
+        }
+
+        function executeReset() {
+            closeResetModal();
+            state.activePlayer = 0;
+            state.isPaused = false;
+            state.isFinished = false;
+
+            state.p1.mainSeconds = config.mainTimeMinutes * 60;
+            state.p1.byoyomiSeconds = config.byoyomiSeconds;
+            state.p1.inByoyomi = false;
+            state.p1.moves = 0;
+
+            state.p2.mainSeconds = config.mainTimeMinutes * 60;
+            state.p2.byoyomiSeconds = config.byoyomiSeconds;
+            state.p2.inByoyomi = false;
+            state.p2.moves = 0;
+
+            if (timerInterval) clearInterval(timerInterval);
+            updateDisplay();
+        }
+
+        // Settings Modal Logic
+        function openSettingsModal() {
+            document.getElementById('inputMainTime').value = config.mainTimeMinutes;
+            document.getElementById('inputByoyomi').value = config.byoyomiSeconds;
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+
+        function applyPreset(mainMin, byoSec) {
+            document.getElementById('inputMainTime').value = mainMin;
+            document.getElementById('inputByoyomi').value = byoSec;
+        }
+
+        function saveSettings() {
+            const mainMin = parseInt(document.getElementById('inputMainTime').value, 10) || 0;
+            const byoSec = parseInt(document.getElementById('inputByoyomi').value, 10) || 0;
+
+            config.mainTimeMinutes = mainMin;
+            config.byoyomiSeconds = byoSec;
+
+            closeSettingsModal();
+            executeReset();
+        }
+
+        // Keyboard Shortcut Listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                handleCenterSwitch();
+            } else if (e.code === 'KeyP') {
+                e.preventDefault();
+                togglePause();
+            } else if (e.code === 'AltLeft' || e.code === 'KeyZ') {
+                e.preventDefault();
+                if (state.activePlayer === 1) handleTap(1);
+            } else if (e.code === 'AltRight' || e.code === 'Slash') {
+                e.preventDefault();
+                if (state.activePlayer === 2) handleTap(2);
+            }
+        });
+
+        // Initialize on Load
+        window.onload = function() {
+            updateDisplay();
+        };
+    </script>
+</body>
+</html>
